@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collaborative Text Editor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            padding: 30px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        
+        .site-subtitle {
+            text-align: center;
+            color: #666;
+            font-size: 18px;
+            margin-bottom: 30px;
+            font-weight: 500;
+        }
+        
+        .search-section {
+            margin-bottom: 30px;
+        }
+        
+        .search-bar {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        
+        input[type="text"], textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        
+        input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #4CAF50;
+        }
+        
+        button {
+            padding: 12px 24px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        
+        button:hover {
+            background-color: #45a049;
+        }
+        
+        button.delete {
+            background-color: #f44336;
+        }
+        
+        button.delete:hover {
+            background-color: #da190b;
+        }
+        
+        button.edit {
+            background-color: #2196F3;
+        }
+        
+        button.edit:hover {
+            background-color: #0b7dda;
+        }
+        
+        .editor-section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        
+        .editor-section h2 {
+            margin-bottom: 15px;
+            color: #333;
+            font-size: 20px;
+        }
+        
+        .form-group {
+            margin-bottom: 15px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        
+        textarea {
+            min-height: 150px;
+            resize: vertical;
+        }
+        
+        .entries-section {
+            margin-top: 30px;
+        }
+        
+        .entries-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        
+        .entry {
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+        
+        .entry h3 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+        
+        .entry-content {
+            color: #666;
+            line-height: 1.6;
+            margin-bottom: 15px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        
+        .entry-meta {
+            font-size: 12px;
+            color: #999;
+            margin-bottom: 10px;
+        }
+        
+        .entry-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .no-entries {
+            text-align: center;
+            color: #999;
+            padding: 40px;
+            font-style: italic;
+        }
+        
+        .button-group {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Collaborative Text Editor</h1>
+        <div class="site-subtitle">GalacticKraken866885</div>
+        
+        <!-- Search Section -->
+        <div class="search-section">
+            <div class="search-bar">
+                <input type="text" id="searchInput" placeholder="Search entries by title or content...">
+                <button onclick="searchEntries()">Search</button>
+                <button onclick="clearSearch()">Clear</button>
+            </div>
+        </div>
+        
+        <!-- Editor Section -->
+        <div class="editor-section">
+            <h2 id="editorTitle">Create New Entry</h2>
+            <form id="entryForm" onsubmit="saveEntry(event)">
+                <div class="form-group">
+                    <label for="titleInput">Title:</label>
+                    <input type="text" id="titleInput" required placeholder="Enter a title...">
+                </div>
+                <div class="form-group">
+                    <label for="contentInput">Content:</label>
+                    <textarea id="contentInput" required placeholder="Enter your content..."></textarea>
+                </div>
+                <div class="button-group">
+                    <button type="submit">Save Entry</button>
+                    <button type="button" onclick="cancelEdit()" id="cancelBtn" class="hidden">Cancel</button>
+                </div>
+            </form>
+        </div>
+        
+        <!-- Entries List -->
+        <div class="entries-section">
+            <h2>All Entries</h2>
+            <div id="entriesList"></div>
+        </div>
+    </div>
+    
+    <script>
+        let currentEditId = null;
+        
+        // Load all entries on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadEntries();
+            
+            // Add Enter key support for search
+            document.getElementById('searchInput').addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    searchEntries();
+                }
+            });
+        });
+        
+        // Load entries from the server
+        async function loadEntries() {
+            try {
+                const response = await fetch('/api/entries');
+                const entries = await response.json();
+                displayEntries(entries);
+            } catch (error) {
+                console.error('Error loading entries:', error);
+                alert('Failed to load entries');
+            }
+        }
+        
+        // Display entries in the list
+        function displayEntries(entries) {
+            const entriesList = document.getElementById('entriesList');
+            
+            if (entries.length === 0) {
+                entriesList.innerHTML = '<div class="no-entries">No entries yet. Create your first entry above!</div>';
+                return;
+            }
+            
+            entriesList.innerHTML = entries.map(entry => `
+                <div class="entry">
+                    <h3>${escapeHtml(entry.title)}</h3>
+                    <div class="entry-meta">
+                        Created: ${new Date(entry.createdAt).toLocaleString()} | 
+                        Updated: ${new Date(entry.updatedAt).toLocaleString()}
+                    </div>
+                    <div class="entry-content">${escapeHtml(entry.content)}</div>
+                    <div class="entry-actions">
+                        <button class="edit" onclick="editEntry('${entry.id}')">Edit</button>
+                        <button class="delete" onclick="deleteEntry('${entry.id}')">Delete</button>
+                    </div>
+                </div>
+            `).join('');
+        }
+        
+        // Search entries
+        async function searchEntries() {
+            const query = document.getElementById('searchInput').value;
+            try {
+                const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
+                const entries = await response.json();
+                displayEntries(entries);
+            } catch (error) {
+                console.error('Error searching entries:', error);
+                alert('Failed to search entries');
+            }
+        }
+        
+        // Clear search and reload all entries
+        function clearSearch() {
+            document.getElementById('searchInput').value = '';
+            loadEntries();
+        }
+        
+        // Save entry (create or update)
+        async function saveEntry(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('titleInput').value;
+            const content = document.getElementById('contentInput').value;
+            
+            try {
+                let response;
+                if (currentEditId) {
+                    // Update existing entry
+                    response = await fetch(`/api/entries/${currentEditId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ title, content })
+                    });
+                } else {
+                    // Create new entry
+                    response = await fetch('/api/entries', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({ title, content })
+                    });
+                }
+                
+                if (response.ok) {
+                    document.getElementById('entryForm').reset();
+                    cancelEdit();
+                    loadEntries();
+                } else {
+                    alert('Failed to save entry');
+                }
+            } catch (error) {
+                console.error('Error saving entry:', error);
+                alert('Failed to save entry');
+            }
+        }
+        
+        // Edit an entry
+        async function editEntry(id) {
+            try {
+                const response = await fetch(`/api/entries/${id}`);
+                const entry = await response.json();
+                
+                document.getElementById('titleInput').value = entry.title;
+                document.getElementById('contentInput').value = entry.content;
+                document.getElementById('editorTitle').textContent = 'Edit Entry';
+                document.getElementById('cancelBtn').classList.remove('hidden');
+                currentEditId = id;
+                
+                // Scroll to editor
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            } catch (error) {
+                console.error('Error loading entry:', error);
+                alert('Failed to load entry');
+            }
+        }
+        
+        // Cancel edit mode
+        function cancelEdit() {
+            document.getElementById('entryForm').reset();
+            document.getElementById('editorTitle').textContent = 'Create New Entry';
+            document.getElementById('cancelBtn').classList.add('hidden');
+            currentEditId = null;
+        }
+        
+        // Delete an entry
+        async function deleteEntry(id) {
+            if (!confirm('Are you sure you want to delete this entry?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/entries/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                if (response.ok) {
+                    loadEntries();
+                } else {
+                    alert('Failed to delete entry');
+                }
+            } catch (error) {
+                console.error('Error deleting entry:', error);
+                alert('Failed to delete entry');
+            }
+        }
+        
+        // Helper function to escape HTML
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
